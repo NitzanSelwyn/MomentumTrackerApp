@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir:*)",
+      "Bash(git -C \"D:\\\\Documents\\\\github\\\\MomentumTrackerApp\" log --oneline -20)",
+      "Bash(git -C \"D:\\\\Documents\\\\github\\\\MomentumTrackerApp\" rev-parse --is-bare-repository)",
+      "WebSearch",
+      "WebFetch(domain:docs.convex.dev)",
+      "WebFetch(domain:docs.expo.dev)",
+      "WebFetch(domain:clerk.com)",
+      "Bash(npx create-expo-app@latest:*)",
+      "Bash(npx expo install:*)",
+      "Bash(npm install:*)",
+      "Bash(npx convex dev:*)",
+      "Bash(npx convex --help:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm uninstall:*)"
+    ]
+  }
+}
