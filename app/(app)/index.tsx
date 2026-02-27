@@ -8,6 +8,7 @@ import {
   ScrollView,
   AppState,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useClerk, useUser } from "@clerk/clerk-expo";
@@ -31,11 +32,13 @@ export default function HomeScreen() {
   const myWorker = useQuery(api.workerApp.getMyWorker);
   const orgSettings = useQuery(api.organizations.getMyOrgSettings);
   const pendingCommands = useQuery(api.commands.getPendingCommands);
+  const todaysTasks = useQuery(api.tasks.getMyTasksForToday);
 
   const toggleDuty = useMutation(api.workerApp.toggleMyDuty);
   const updateLocation = useMutation(api.workerApp.updateLocationWithHistory);
   const markAcknowledged = useMutation(api.commands.markAcknowledged);
   const updateMyName = useMutation(api.workerApp.updateMyName);
+  const updateTaskStatus = useMutation(api.tasks.updateTaskAssignment);
 
   useCommandSound(pendingCommands);
   const { requestPermissions, checkPermissions } = useLocationPermissions();
@@ -124,6 +127,18 @@ export default function HomeScreen() {
       await markAcknowledged({ commandId });
     } catch (err) {
       console.error("Failed to acknowledge command:", err);
+    }
+  };
+
+  const handleTaskAction = async (
+    taskId: any,
+    newStatus: "in_progress" | "completed" | "skipped"
+  ) => {
+    try {
+      await updateTaskStatus({ assignmentId: taskId, status: newStatus });
+    } catch (err) {
+      console.error("Failed to update task:", err);
+      Alert.alert("Error", "Failed to update task. Please try again.");
     }
   };
 
@@ -239,6 +254,102 @@ export default function HomeScreen() {
             {isToggling ? "..." : isOnDuty ? "End Shift" : "Start Shift"}
           </Text>
         </TouchableOpacity>
+
+        {/* Today's Tasks */}
+        {hasOrg && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Today's Tasks</Text>
+            {todaysTasks === undefined ? (
+              <View style={styles.emptyCard}>
+                <ActivityIndicator size="small" color="#4A90D9" />
+              </View>
+            ) : todaysTasks.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyText}>No tasks for today</Text>
+              </View>
+            ) : (
+              todaysTasks.map((task) => (
+                <View
+                  key={task._id}
+                  style={[
+                    styles.taskCard,
+                    task.status === "completed" && styles.taskCardCompleted,
+                    task.status === "skipped" && styles.taskCardSkipped,
+                  ]}
+                >
+                  <View style={styles.taskHeader}>
+                    <View style={styles.taskTitleRow}>
+                      <View
+                        style={[
+                          styles.taskStatusDot,
+                          task.status === "pending" && styles.dotPending,
+                          task.status === "in_progress" && styles.dotInProgress,
+                          task.status === "completed" && styles.dotCompleted,
+                          task.status === "skipped" && styles.dotSkipped,
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.taskTitle,
+                          task.status === "skipped" && styles.taskTitleSkipped,
+                        ]}
+                      >
+                        {task.title}
+                      </Text>
+                    </View>
+                    {task.estimatedMinutes != null && (
+                      <Text style={styles.taskDuration}>{task.estimatedMinutes}m</Text>
+                    )}
+                  </View>
+
+                  {task.description ? (
+                    <Text style={styles.taskDescription}>{task.description}</Text>
+                  ) : null}
+
+                  {task.status === "completed" && task.completedAt ? (
+                    <Text style={styles.taskCompletedTime}>
+                      Done at {new Date(task.completedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </Text>
+                  ) : null}
+
+                  {task.status === "pending" && (
+                    <View style={styles.taskActions}>
+                      <TouchableOpacity
+                        style={styles.taskActionStart}
+                        onPress={() => handleTaskAction(task._id, "in_progress")}
+                      >
+                        <Text style={styles.taskActionStartText}>Start</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.taskActionSkip}
+                        onPress={() => handleTaskAction(task._id, "skipped")}
+                      >
+                        <Text style={styles.taskActionSkipText}>Skip</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  {task.status === "in_progress" && (
+                    <View style={styles.taskActions}>
+                      <TouchableOpacity
+                        style={styles.taskActionComplete}
+                        onPress={() => handleTaskAction(task._id, "completed")}
+                      >
+                        <Text style={styles.taskActionCompleteText}>Mark Complete</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.taskActionSkip}
+                        onPress={() => handleTaskAction(task._id, "skipped")}
+                      >
+                        <Text style={styles.taskActionSkipText}>Skip</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              ))
+            )}
+          </View>
+        )}
 
         {/* Admin Messages */}
         <View style={styles.section}>
@@ -475,5 +586,120 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  taskCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  taskCardCompleted: {
+    backgroundColor: "#f0fdf4",
+    borderColor: "#bbf7d0",
+  },
+  taskCardSkipped: {
+    backgroundColor: "#fafafa",
+    borderColor: "#ebebeb",
+    opacity: 0.7,
+  },
+  taskHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 4,
+  },
+  taskTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 8,
+  },
+  taskStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    flexShrink: 0,
+  },
+  dotPending: {
+    backgroundColor: "#9ca3af",
+  },
+  dotInProgress: {
+    backgroundColor: "#4A90D9",
+  },
+  dotCompleted: {
+    backgroundColor: "#22c55e",
+  },
+  dotSkipped: {
+    backgroundColor: "#d1d5db",
+  },
+  taskTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1a1a1a",
+    flex: 1,
+  },
+  taskTitleSkipped: {
+    textDecorationLine: "line-through",
+    color: "#9ca3af",
+  },
+  taskDuration: {
+    fontSize: 12,
+    color: "#9ca3af",
+    marginLeft: 8,
+    flexShrink: 0,
+  },
+  taskDescription: {
+    fontSize: 13,
+    color: "#6b7280",
+    marginBottom: 10,
+    lineHeight: 18,
+  },
+  taskCompletedTime: {
+    fontSize: 12,
+    color: "#22c55e",
+    marginTop: 4,
+  },
+  taskActions: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 10,
+  },
+  taskActionStart: {
+    flex: 1,
+    backgroundColor: "#4A90D9",
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  taskActionStartText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  taskActionComplete: {
+    flex: 1,
+    backgroundColor: "#22c55e",
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  taskActionCompleteText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  taskActionSkip: {
+    flex: 1,
+    backgroundColor: "#f3f4f6",
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  taskActionSkipText: {
+    color: "#6b7280",
+    fontWeight: "600",
+    fontSize: 14,
   },
 });

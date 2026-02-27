@@ -14,7 +14,8 @@
       "Bash(npx convex dev:*)",
       "Bash(npx convex --help:*)",
       "Bash(npx tsc:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(npm i:*)"
     ]
   }
 }

@@ -49,6 +49,59 @@ export default defineSchema({
     timestamp: v.number(),
   }).index("by_workerId_timestamp", ["workerId", "timestamp"]),
 
+  mapZones: defineTable({
+    organizationId: v.id("organizations"),
+    name: v.string(),
+    color: v.string(),
+    points: v.array(v.object({ lat: v.number(), lng: v.number() })),
+    createdAt: v.number(),
+  }).index("by_organizationId", ["organizationId"]),
+
+  floorPlans: defineTable({
+    organizationId: v.id("organizations"),
+    name: v.string(),
+    imageStorageId: v.id("_storage"),
+    imageWidth: v.number(),
+    imageHeight: v.number(),
+    calibrationPoints: v.array(v.object({
+      px: v.number(),
+      py: v.number(),
+      lat: v.number(),
+      lng: v.number(),
+    })),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organizationId", ["organizationId"])
+    .index("by_organizationId_active", ["organizationId", "isActive"]),
+
+  floorMarkers: defineTable({
+    floorPlanId: v.id("floorPlans"),
+    organizationId: v.id("organizations"),
+    name: v.string(),
+    icon: v.optional(v.string()),
+    x: v.number(),
+    y: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_floorPlanId", ["floorPlanId"])
+    .index("by_organizationId", ["organizationId"]),
+
+  floorZones: defineTable({
+    floorPlanId: v.id("floorPlans"),
+    organizationId: v.id("organizations"),
+    name: v.string(),
+    color: v.string(),
+    points: v.array(v.object({
+      x: v.number(),
+      y: v.number(),
+    })),
+    createdAt: v.number(),
+  })
+    .index("by_floorPlanId", ["floorPlanId"])
+    .index("by_organizationId", ["organizationId"]),
+
   workerCommands: defineTable({
     workerId: v.id("workers"),
     fromAdminId: v.id("workers"),
@@ -74,4 +127,58 @@ export default defineSchema({
   })
     .index("by_workerId", ["workerId"])
     .index("by_workerId_status", ["workerId", "status"]),
+
+  taskTemplates: defineTable({
+    organizationId: v.id("organizations"),
+    title: v.string(),
+    description: v.optional(v.string()),
+    estimatedMinutes: v.optional(v.number()),
+    category: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_organizationId", ["organizationId"]),
+
+  taskAssignments: defineTable({
+    organizationId: v.id("organizations"),
+    workerId: v.id("workers"),
+    assignedDate: v.string(),
+    title: v.string(),
+    description: v.optional(v.string()),
+    estimatedMinutes: v.optional(v.number()),
+    taskTemplateId: v.optional(v.id("taskTemplates")),
+    recurringRuleId: v.optional(v.id("recurringTaskRules")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("in_progress"),
+      v.literal("completed"),
+      v.literal("skipped"),
+    ),
+    completedAt: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workerId_date", ["workerId", "assignedDate"])
+    .index("by_organizationId_date", ["organizationId", "assignedDate"]),
+
+  recurringTaskRules: defineTable({
+    organizationId: v.id("organizations"),
+    workerIds: v.array(v.id("workers")),
+    title: v.string(),
+    description: v.optional(v.string()),
+    estimatedMinutes: v.optional(v.number()),
+    taskTemplateId: v.optional(v.id("taskTemplates")),
+    recurrenceType: v.union(
+      v.literal("daily"),
+      v.literal("weekdays"),
+      v.literal("weekly"),
+      v.literal("custom"),
+    ),
+    weekdays: v.optional(v.array(v.number())),
+    startDate: v.string(),
+    endDate: v.optional(v.string()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_organizationId", ["organizationId"]),
 });
