@@ -15,7 +15,9 @@
       "Bash(npx convex --help:*)",
       "Bash(npx tsc:*)",
       "Bash(npm uninstall:*)",
-      "Bash(npm i:*)"
+      "Bash(npm i:*)",
+      "Bash(node -e:*)",
+      "Bash(findstr:*)"
     ]
   }
 }

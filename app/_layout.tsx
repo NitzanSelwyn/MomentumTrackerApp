@@ -10,7 +10,11 @@ import { ConvexReactClient } from "convex/react";
 import { TOKEN_REFRESH_INTERVAL } from "../src/constants/config";
 import { storeToken, deleteStoredToken } from "../src/services/tokenRefreshService";
 
-const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!);
+const convexUrl = process.env.EXPO_PUBLIC_CONVEX_URL;
+if (!convexUrl) {
+  console.error("Missing EXPO_PUBLIC_CONVEX_URL environment variable");
+}
+const convex = new ConvexReactClient(convexUrl as string);
 
 function TokenRefresher() {
   const { getToken, isSignedIn } = useAuth();
