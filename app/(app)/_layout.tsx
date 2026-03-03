@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Slot, router } from "expo-router";
+import { Redirect, Slot } from "expo-router";
 import { useConvexAuth } from "convex/react";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -15,18 +15,16 @@ export default function AppLayout() {
     }
   }, [isAuthenticated]);
 
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace("/(auth)/sign-in");
-    }
-  }, [isLoading, isAuthenticated]);
-
-  if (isLoading || !isAuthenticated) {
+  if (isLoading) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color="#4A90D9" />
       </View>
     );
+  }
+
+  if (!isAuthenticated) {
+    return <Redirect href="/(auth)/sign-in" />;
   }
 
   return <Slot />;
