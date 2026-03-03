@@ -24,6 +24,7 @@ export default defineSchema({
     isOnDuty: v.boolean(),
     lastSeen: v.optional(v.number()),
     createdAt: v.number(),
+    locationMode: v.optional(v.union(v.literal("outdoor"), v.literal("indoor"))),
   })
     .index("by_clerkId", ["clerkId"])
     .index("by_role", ["role"])
@@ -38,6 +39,14 @@ export default defineSchema({
     isCharging: v.optional(v.boolean()),
     timestamp: v.number(),
     updatedAt: v.number(),
+    heading: v.optional(v.number()),
+    altitude: v.optional(v.number()),
+    floor: v.optional(v.number()),
+    speed: v.optional(v.number()),
+    isMoving: v.optional(v.boolean()),
+    locationMode: v.optional(v.union(v.literal("outdoor"), v.literal("indoor"))),
+    stepCount: v.optional(v.number()),
+    pressure: v.optional(v.number()),
   }).index("by_workerId", ["workerId"]),
 
   historicalWorkerLocations: defineTable({
@@ -47,6 +56,13 @@ export default defineSchema({
     accuracy: v.optional(v.number()),
     batteryLevel: v.optional(v.number()),
     timestamp: v.number(),
+    heading: v.optional(v.number()),
+    altitude: v.optional(v.number()),
+    floor: v.optional(v.number()),
+    speed: v.optional(v.number()),
+    isMoving: v.optional(v.boolean()),
+    locationMode: v.optional(v.union(v.literal("outdoor"), v.literal("indoor"))),
+    stepCount: v.optional(v.number()),
   }).index("by_workerId_timestamp", ["workerId", "timestamp"]),
 
   mapZones: defineTable({

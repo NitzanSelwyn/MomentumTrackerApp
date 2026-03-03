@@ -18,10 +18,15 @@ import { useLocationPermissions } from "../../src/hooks/useLocationPermissions";
 import { useLocationTracking } from "../../src/hooks/useLocationTracking";
 import { useBatteryLevel } from "../../src/hooks/useBatteryLevel";
 import { useCommandSound } from "../../src/hooks/useCommandSound";
+import { useSensorFusion } from "../../src/hooks/useSensorFusion";
 import { deleteStoredToken } from "../../src/services/tokenRefreshService";
 import { useRouter } from "expo-router";
 import * as Location from "expo-location";
-import { BACKGROUND_LOCATION_TASK } from "../../src/constants/config";
+import * as SecureStore from "expo-secure-store";
+import { BACKGROUND_LOCATION_TASK, SECURE_STORE_KEYS, LOCATION_MODES } from "../../src/constants/config";
+import type { LocationUpdateData } from "../../src/hooks/useLocationTracking";
+
+type LocationMode = "outdoor" | "indoor";
 
 export default function HomeScreen() {
   const { signOut } = useClerk();
@@ -39,19 +44,29 @@ export default function HomeScreen() {
   const markAcknowledged = useMutation(api.commands.markAcknowledged);
   const updateMyName = useMutation(api.workerApp.updateMyName);
   const updateTaskStatus = useMutation(api.tasks.updateTaskAssignment);
+  const setLocationModeMutation = useMutation(api.workerApp.setLocationMode);
 
   useCommandSound(pendingCommands);
   const { requestPermissions, checkPermissions } = useLocationPermissions();
   const { startTracking, stopTracking } = useLocationTracking();
   const { batteryLevel, batteryStateLabel } = useBatteryLevel();
+  const sensorFusion = useSensorFusion();
 
   const [isToggling, setIsToggling] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState("");
+  const [locationMode, setLocationMode] = useState<LocationMode>(LOCATION_MODES.OUTDOOR);
   const nameInputRef = useRef<TextInput>(null);
 
   const isOnDuty = myWorker?.isOnDuty ?? false;
   const hasOrg = !!myWorker?.organizationId;
+
+  // Sync locationMode from worker record on load
+  useEffect(() => {
+    if (myWorker?.locationMode) {
+      setLocationMode(myWorker.locationMode);
+    }
+  }, [myWorker?.locationMode]);
 
   // Re-check permissions when app returns to foreground
   useEffect(() => {
@@ -74,23 +89,31 @@ export default function HomeScreen() {
   }, [myWorker?._id]);
 
   const handleForegroundLocation = useCallback(
-    async (location: Location.LocationObject) => {
+    async (data: LocationUpdateData) => {
       const level = batteryLevel != null ? Math.round(batteryLevel * 100) : undefined;
       const isCharging = batteryStateLabel === "CHARGING" ? true : undefined;
 
       try {
         await updateLocation({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-          accuracy: location.coords.accuracy ?? undefined,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          accuracy: data.accuracy,
           batteryLevel: level,
           isCharging,
+          heading: data.heading ?? (sensorFusion.heading ?? undefined),
+          altitude: data.altitude,
+          speed: data.speed,
+          floor: sensorFusion.estimatedFloor,
+          isMoving: sensorFusion.isMoving,
+          locationMode,
+          stepCount: sensorFusion.stepCount,
+          pressure: sensorFusion.pressure ?? undefined,
         });
       } catch (err) {
         console.error("Failed to update location:", err);
       }
     },
-    [batteryLevel, batteryStateLabel, updateLocation]
+    [batteryLevel, batteryStateLabel, updateLocation, sensorFusion, locationMode]
   );
 
   const handleToggleShift = async () => {
@@ -109,9 +132,18 @@ export default function HomeScreen() {
           return;
         }
         await toggleDuty({ isOnDuty: true });
-        await startTracking(handleForegroundLocation, orgSettings?.locationIntervalMs);
+        await sensorFusion.startSensors();
+        // Save baseline pressure to SecureStore for background task
+        if (sensorFusion.pressure !== null) {
+          await SecureStore.setItemAsync(
+            SECURE_STORE_KEYS.BASELINE_PRESSURE,
+            String(sensorFusion.pressure)
+          );
+        }
+        await startTracking(handleForegroundLocation, orgSettings?.locationIntervalMs, locationMode, sensorFusion);
       } else {
         await stopTracking();
+        sensorFusion.stopSensors();
         await toggleDuty({ isOnDuty: false });
       }
     } catch (err) {
@@ -119,6 +151,28 @@ export default function HomeScreen() {
       Alert.alert("Error", "Failed to toggle shift. Please try again.");
     } finally {
       setIsToggling(false);
+    }
+  };
+
+  const handleLocationModeChange = async (mode: LocationMode) => {
+    setLocationMode(mode);
+    try {
+      await Promise.all([
+        setLocationModeMutation({ locationMode: mode }),
+        SecureStore.setItemAsync(SECURE_STORE_KEYS.LOCATION_MODE, mode),
+      ]);
+    } catch (err) {
+      console.error("Failed to save location mode:", err);
+    }
+  };
+
+  const handleRecalibrate = async () => {
+    sensorFusion.resetBaseline();
+    if (sensorFusion.pressure !== null) {
+      await SecureStore.setItemAsync(
+        SECURE_STORE_KEYS.BASELINE_PRESSURE,
+        String(sensorFusion.pressure)
+      ).catch(() => {});
     }
   };
 
@@ -146,6 +200,7 @@ export default function HomeScreen() {
     try {
       if (isOnDuty) {
         await stopTracking();
+        sensorFusion.stopSensors();
         await toggleDuty({ isOnDuty: false });
       }
       await deleteStoredToken();
@@ -154,6 +209,12 @@ export default function HomeScreen() {
       console.error("Sign out failed:", err);
     }
   };
+
+  const floorLabel = sensorFusion.estimatedFloor === 0
+    ? "Ground"
+    : sensorFusion.estimatedFloor > 0
+      ? `+${sensorFusion.estimatedFloor}`
+      : `${sensorFusion.estimatedFloor}`;
 
   if (!myWorker) {
     return (
@@ -239,6 +300,61 @@ export default function HomeScreen() {
           <Text style={styles.statusText}>
             {isOnDuty ? "ON SHIFT" : "OFF SHIFT"}
           </Text>
+        </View>
+
+        {/* Location Mode */}
+        <View style={styles.locationModeCard}>
+          <Text style={styles.locationModeTitle}>Location Mode</Text>
+          <View style={styles.locationModeToggle}>
+            <TouchableOpacity
+              style={[
+                styles.modeButton,
+                locationMode === LOCATION_MODES.OUTDOOR && styles.modeButtonActive,
+              ]}
+              onPress={() => handleLocationModeChange(LOCATION_MODES.OUTDOOR)}
+            >
+              <Text
+                style={[
+                  styles.modeButtonText,
+                  locationMode === LOCATION_MODES.OUTDOOR && styles.modeButtonTextActive,
+                ]}
+              >
+                Open Field
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.modeButton,
+                locationMode === LOCATION_MODES.INDOOR && styles.modeButtonActive,
+              ]}
+              onPress={() => handleLocationModeChange(LOCATION_MODES.INDOOR)}
+            >
+              <Text
+                style={[
+                  styles.modeButtonText,
+                  locationMode === LOCATION_MODES.INDOOR && styles.modeButtonTextActive,
+                ]}
+              >
+                Indoor
+              </Text>
+            </TouchableOpacity>
+          </View>
+          {locationMode === LOCATION_MODES.INDOOR && (
+            <View style={styles.indoorInfo}>
+              <Text style={styles.indoorInfoText}>
+                Floor: {floorLabel}
+              </Text>
+              <Text style={styles.indoorInfoText}>
+                {sensorFusion.isMoving ? "Moving" : "Still"}
+              </Text>
+              <TouchableOpacity
+                style={styles.recalibrateButton}
+                onPress={handleRecalibrate}
+              >
+                <Text style={styles.recalibrateButtonText}>Recalibrate</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         <TouchableOpacity
@@ -504,6 +620,70 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     color: "#1a1a1a",
+  },
+  locationModeCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  locationModeTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#555",
+    marginBottom: 10,
+  },
+  locationModeToggle: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  modeButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: "center",
+    backgroundColor: "#f3f4f6",
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  modeButtonActive: {
+    backgroundColor: "#4A90D9",
+    borderColor: "#4A90D9",
+  },
+  modeButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6b7280",
+  },
+  modeButtonTextActive: {
+    color: "#fff",
+  },
+  indoorInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+    gap: 12,
+  },
+  indoorInfoText: {
+    fontSize: 13,
+    color: "#555",
+    fontWeight: "500",
+  },
+  recalibrateButton: {
+    marginLeft: "auto",
+    backgroundColor: "#f3f4f6",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+  },
+  recalibrateButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#374151",
   },
   shiftButton: {
     borderRadius: 16,

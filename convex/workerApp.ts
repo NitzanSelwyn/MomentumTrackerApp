@@ -30,6 +30,14 @@ export const updateLocationWithHistory = mutation({
     accuracy: v.optional(v.number()),
     batteryLevel: v.optional(v.number()),
     isCharging: v.optional(v.boolean()),
+    heading: v.optional(v.number()),
+    altitude: v.optional(v.number()),
+    floor: v.optional(v.number()),
+    speed: v.optional(v.number()),
+    isMoving: v.optional(v.boolean()),
+    locationMode: v.optional(v.union(v.literal("outdoor"), v.literal("indoor"))),
+    stepCount: v.optional(v.number()),
+    pressure: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -49,6 +57,14 @@ export const updateLocationWithHistory = mutation({
       accuracy: args.accuracy,
       batteryLevel: args.batteryLevel,
       isCharging: args.isCharging,
+      heading: args.heading,
+      altitude: args.altitude,
+      floor: args.floor,
+      speed: args.speed,
+      isMoving: args.isMoving,
+      locationMode: args.locationMode,
+      stepCount: args.stepCount,
+      pressure: args.pressure,
       timestamp: now,
       updatedAt: now,
     };
@@ -88,6 +104,13 @@ export const updateLocationWithHistory = mutation({
         longitude: args.longitude,
         accuracy: args.accuracy,
         batteryLevel: args.batteryLevel,
+        heading: args.heading,
+        altitude: args.altitude,
+        floor: args.floor,
+        speed: args.speed,
+        isMoving: args.isMoving,
+        locationMode: args.locationMode,
+        stepCount: args.stepCount,
         timestamp: now,
       });
     }
@@ -151,6 +174,17 @@ export const updateMyName = mutation({
   handler: async (ctx, args) => {
     const { worker } = await requireWorker(ctx);
     await ctx.db.patch(worker._id, { name: args.name });
+    return null;
+  },
+});
+
+// Set own location mode preference
+export const setLocationMode = mutation({
+  args: { locationMode: v.union(v.literal("outdoor"), v.literal("indoor")) },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { worker } = await requireWorker(ctx);
+    await ctx.db.patch(worker._id, { locationMode: args.locationMode });
     return null;
   },
 });

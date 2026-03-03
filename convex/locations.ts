@@ -11,6 +11,38 @@ async function requireAuth(ctx: QueryCtx | MutationCtx) {
   return identity;
 }
 
+const sensorFieldArgs = {
+  heading: v.optional(v.number()),
+  altitude: v.optional(v.number()),
+  floor: v.optional(v.number()),
+  speed: v.optional(v.number()),
+  isMoving: v.optional(v.boolean()),
+  locationMode: v.optional(v.union(v.literal("outdoor"), v.literal("indoor"))),
+  stepCount: v.optional(v.number()),
+  pressure: v.optional(v.number()),
+};
+
+const sensorFieldsValidator = {
+  heading: v.optional(v.number()),
+  altitude: v.optional(v.number()),
+  floor: v.optional(v.number()),
+  speed: v.optional(v.number()),
+  isMoving: v.optional(v.boolean()),
+  locationMode: v.optional(v.union(v.literal("outdoor"), v.literal("indoor"))),
+  stepCount: v.optional(v.number()),
+  pressure: v.optional(v.number()),
+};
+
+const historicalSensorFieldsValidator = {
+  heading: v.optional(v.number()),
+  altitude: v.optional(v.number()),
+  floor: v.optional(v.number()),
+  speed: v.optional(v.number()),
+  isMoving: v.optional(v.boolean()),
+  locationMode: v.optional(v.union(v.literal("outdoor"), v.literal("indoor"))),
+  stepCount: v.optional(v.number()),
+};
+
 export const updateLocation = mutation({
   args: {
     latitude: v.number(),
@@ -18,6 +50,7 @@ export const updateLocation = mutation({
     accuracy: v.optional(v.number()),
     batteryLevel: v.optional(v.number()),
     isCharging: v.optional(v.boolean()),
+    ...sensorFieldArgs,
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -40,26 +73,30 @@ export const updateLocation = mutation({
       .withIndex("by_workerId", (q) => q.eq("workerId", worker._id))
       .unique();
 
+    const locationData = {
+      latitude: args.latitude,
+      longitude: args.longitude,
+      accuracy: args.accuracy,
+      batteryLevel: args.batteryLevel,
+      isCharging: args.isCharging,
+      heading: args.heading,
+      altitude: args.altitude,
+      floor: args.floor,
+      speed: args.speed,
+      isMoving: args.isMoving,
+      locationMode: args.locationMode,
+      stepCount: args.stepCount,
+      pressure: args.pressure,
+      timestamp: now,
+      updatedAt: now,
+    };
+
     if (existing) {
-      await ctx.db.patch(existing._id, {
-        latitude: args.latitude,
-        longitude: args.longitude,
-        accuracy: args.accuracy,
-        batteryLevel: args.batteryLevel,
-        isCharging: args.isCharging,
-        timestamp: now,
-        updatedAt: now,
-      });
+      await ctx.db.patch(existing._id, locationData);
     } else {
       await ctx.db.insert("currentWorkerLocations", {
         workerId: worker._id,
-        latitude: args.latitude,
-        longitude: args.longitude,
-        accuracy: args.accuracy,
-        batteryLevel: args.batteryLevel,
-        isCharging: args.isCharging,
-        timestamp: now,
-        updatedAt: now,
+        ...locationData,
       });
     }
 
@@ -87,6 +124,7 @@ export const getCurrentLocations = query({
       workerName: v.string(),
       workerRole: v.union(v.literal("worker"), v.literal("admin")),
       isOnDuty: v.boolean(),
+      ...sensorFieldsValidator,
     })
   ),
   handler: async (ctx) => {
@@ -124,6 +162,7 @@ export const getWorkerHistory = query({
       accuracy: v.optional(v.number()),
       batteryLevel: v.optional(v.number()),
       timestamp: v.number(),
+      ...historicalSensorFieldsValidator,
     })
   ),
   handler: async (ctx, args) => {
@@ -149,6 +188,13 @@ export const logHistoricalLocation = mutation({
     longitude: v.number(),
     accuracy: v.optional(v.number()),
     batteryLevel: v.optional(v.number()),
+    heading: v.optional(v.number()),
+    altitude: v.optional(v.number()),
+    floor: v.optional(v.number()),
+    speed: v.optional(v.number()),
+    isMoving: v.optional(v.boolean()),
+    locationMode: v.optional(v.union(v.literal("outdoor"), v.literal("indoor"))),
+    stepCount: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -159,6 +205,13 @@ export const logHistoricalLocation = mutation({
       longitude: args.longitude,
       accuracy: args.accuracy,
       batteryLevel: args.batteryLevel,
+      heading: args.heading,
+      altitude: args.altitude,
+      floor: args.floor,
+      speed: args.speed,
+      isMoving: args.isMoving,
+      locationMode: args.locationMode,
+      stepCount: args.stepCount,
       timestamp: Date.now(),
     });
     return null;
