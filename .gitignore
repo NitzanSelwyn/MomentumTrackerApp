@@ -34,8 +34,8 @@ yarn-error.*
 .env*.local
 .env
 
-# Convex generated
-convex/_generated/
+# Convex generated (committed for EAS builds)
+# convex/_generated/
 
 # typescript
 *.tsbuildinfo

@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "MomentumTracker",
-    "slug": "MomentumTrackerApp",
+    "slug": "momentuntracker",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -34,7 +34,14 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION"
+        "FOREGROUND_SERVICE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ],
       "package": "com.momentum.tracker"
     },
@@ -60,6 +67,13 @@
           "cameraPermission": "MomentumTracker needs camera access to scan QR codes for joining organizations."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "43a5b64a-87d2-4919-9948-0f257e0646f1"
+      }
+    },
+    "owner": "nitzanselwyns-organization"
   }
 }

@@ -1,23 +1,26 @@
-import { Redirect } from "expo-router";
+import { useEffect } from "react";
+import { router } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 
 export default function Index() {
   const { isSignedIn, isLoaded } = useAuth();
 
-  if (!isLoaded) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#4A90D9" />
-      </View>
-    );
-  }
+  useEffect(() => {
+    if (!isLoaded) return;
 
-  if (isSignedIn) {
-    return <Redirect href="/(app)" />;
-  }
+    if (isSignedIn) {
+      router.replace("/(app)");
+    } else {
+      router.replace("/(auth)/sign-in");
+    }
+  }, [isSignedIn, isLoaded]);
 
-  return <Redirect href="/(auth)/sign-in" />;
+  return (
+    <View style={styles.loading}>
+      <ActivityIndicator size="large" color="#4A90D9" />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
